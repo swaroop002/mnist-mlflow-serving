@@ -1,0 +1,11 @@
+# local MLflow server state and the virtualenv -- not part of the code
+mlflow-cnn/
+mlruns/
+mlflow.db
+mlartifacts/
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.h5
+*.keras

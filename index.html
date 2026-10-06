@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Digit predictor</title>
+<style>
+  body { font: 16px system-ui, sans-serif; max-width: 420px; margin: 3rem auto; color: #222; text-align: center; }
+  canvas { border: 2px solid #444; border-radius: 6px; background: #000; touch-action: none; cursor: crosshair; }
+  button { font: inherit; padding: .5rem 1rem; margin: .5rem .25rem; border: 1px solid #888; border-radius: 6px; background: #fafafa; cursor: pointer; }
+  #result { font-size: 2.4rem; margin-top: .6rem; min-height: 3rem; }
+  #probs { font-size: .8rem; color: #666; }
+</style>
+<h1>Draw a digit</h1>
+<canvas id="pad" width="280" height="280"></canvas><br>
+<button id="predict">Predict</button><button id="clear">Clear</button>
+<div id="result"></div><div id="probs"></div>
+<script>
+  // 280x280 drawing surface -> downsampled to the 28x28 greyscale input the CNN was trained on.
+  const API = "http://localhost:5001/predict";
+  const pad = document.getElementById("pad"), ctx = pad.getContext("2d");
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 280, 280);
+  ctx.lineWidth = 22; ctx.lineCap = "round"; ctx.strokeStyle = "#fff";
+  let drawing = false;
+  const pos = e => { const r = pad.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  pad.addEventListener("pointerdown", e => { drawing = true; ctx.beginPath(); ctx.moveTo(...pos(e)); });
+  pad.addEventListener("pointermove", e => { if (drawing) { ctx.lineTo(...pos(e)); ctx.stroke(); } });
+  window.addEventListener("pointerup", () => drawing = false);
+  document.getElementById("clear").onclick = () => { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 280, 280); result.textContent = ""; probs.textContent = ""; };
+  document.getElementById("predict").onclick = async () => {
+    const small = document.createElement("canvas"); small.width = small.height = 28;
+    const sctx = small.getContext("2d"); sctx.drawImage(pad, 0, 0, 28, 28);
+    const px = sctx.getImageData(0, 0, 28, 28).data, image = [];
+    for (let i = 0; i < px.length; i += 4) image.push(px[i] / 255);          // red channel = grey level, 0..1
+    result.textContent = "…";
+    try {
+      const r = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image }) });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      result.textContent = d.predicted_digit;
+      probs.textContent = d.probabilities.map((p, i) => `${i}: ${(p * 100).toFixed(0)}%`).join("  ");
+    } catch (e) { result.textContent = "error"; probs.textContent = e.message + " — is predict_api.py running on :5001?"; }
+  };
+</script>
